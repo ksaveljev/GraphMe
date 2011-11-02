@@ -33,7 +33,7 @@ var GraphMe = {
    *
    * @member Object
    */
-  containers: {plot: null, summary: null},
+  containers: {plot: null, summary: null, labels: null},
   /**
    * Div handles for interaction with graphs
    *
@@ -52,6 +52,12 @@ var GraphMe = {
    * @member Object
    */
   graphs: {plot: null, summary: null},
+  /**
+   * Toggling on and off of graphs
+   *
+   * @member Array
+   */
+  graphStatus: [],
   /**
    * Formatter for x axis ticks
    *
@@ -77,23 +83,29 @@ var GraphMe = {
    * Initialization function
    *
    * @param String id
-   * @param Array plotData
+   * @param Hash plotData
    * @param Integer summaryPeriod
    */
   init: function(id, plotData, summaryPeriod) {
 
     // Set members
     this.id = id;
-    this.plotData.data = plotData;
+    // plotData is a hash of a form
+    // header1 => [stats data],
+    // header2 => [stats data]
+    plotData.each(function(pair) {
+      this.plotData.data.push(pair.value);
+      this.graphStatus.push({name: pair.key, enabled: false});
+      this.plotsNum += 1;
+    }, this);
     this.summaryPeriod = summaryPeriod;
-    this.plotsNum = plotData.length;
 
     // Build summary graph data from plotData and summeryPeriod
     this.plotData.summary = this.buildSummaryPlotData(this.plotData.data, this.summaryPeriod);
 
     // Set bounds to scale automatically in the y direction
     this.bounds.xmin = 0;
-    this.bounds.xmax = plotData[0].length;
+    this.bounds.xmax = this.plotData.data[0].length;
     this.bounds.ymin = null;
     this.bounds.ymax = null;
 
@@ -120,11 +132,6 @@ var GraphMe = {
 
     summaryData = [];
 
-    // TODO: a note on performance
-    // Should you have a very large array, using iterators with lexical closures,
-    // such as each, or relying on repetitive array construction (such as uniq),
-    // may yield unsatisfactory performance. In such cases, you're better off
-    // writing manual indexing loops...
     plotData.each(function(data) {
       var tmp = [];
       for (var i = 0; i < data.length; i += summaryPeriod) {
@@ -144,8 +151,9 @@ var GraphMe = {
     var container = $(this.id);
 
     // Build DOM element
-    this.containers.plot = new Element('div', {id: 'fullGraph', style: 'width: 100%; height: 340px;'});
+    this.containers.plot = new Element('div', {id: 'fullGraph', style: 'width: 100%; height: 540px;'});
     this.containers.summary = new Element('div', {id: 'summaryGraph', style: 'width: 100%; height: 60px;'});
+    this.containers.labels = new Element('div', {id: 'labelsSelection', style: 'width: 100%; margin-top: 20px'});
     this.handles.left = new Element('div', {id: 'leftHandle', 'class': 'handle zoomHandle', style: 'display: none;'});
     this.handles.right = new Element('div', {id: 'rightHandle', 'class': 'handle zoomHandle', style: 'display: none;'});
     this.handles.scroll = new Element('div', {id: 'scrollHandle', 'class': 'handle scrollHandle', style: 'display: none;'});
@@ -157,9 +165,21 @@ var GraphMe = {
     // Insert into container
     container.insert(this.containers.plot);
     container.insert(this.containers.summary);
+    container.insert(this.containers.labels);
     container.insert(this.handles.left);
     container.insert(this.handles.right);
     container.insert(this.handles.scroll);
+
+    // Insert checkboxes to enable/disable drawing of particular graphs
+    html = ['<table style="margin-left:auto; margin-right:auto; font-size:13">'];
+
+    this.graphStatus.each(function(graphStatus, index) {
+      html.push('<tr><td><input id="graphStatus' + index + '" type="checkbox" name="graphStatus" value="' + index + '" /></td><td><label id="graphStatusLabel' + index + '">' + graphStatus.name + '</label></td></tr>');
+    });
+
+    html.push('</table>');
+
+    this.containers.labels.insert(html.join(''));
   },
 
   /**
@@ -181,6 +201,34 @@ var GraphMe = {
 
     // Attach summary selection event to redraw price and volume charts
     Event.observe(this.containers.summary, 'flotr:select', this.selectObserver.bind(this));
+
+    // On checking/unchecking labels enable/disable plotting of selected graphs
+    this.graphStatus.each(function(graphStatus, index) {
+      $('graphStatus' + index).observe('change', this.updateGraphStatus.bind(this));
+    }, this);
+  },
+
+  /**
+   * Update graphs upon one of the checkbox updates
+   *
+   * @param e MouseEvent
+   */
+  updateGraphStatus: function(e) {
+    srcElement = e.srcElement;
+    this.graphStatus[srcElement.value].enabled = srcElement.checked;
+
+    var area = {
+      x1: 0,
+      y1: this.bounds.ymin,
+      x2: 100,
+      y2: this.bounds.ymax
+    };
+
+    this.graphs.summary = this.summaryGraph(this.plotData.summary, this.bounds);
+    this.graphs.summary.setSelection(area);
+
+    $('summaryGraph').fire('flotr:click');
+    this.graphs.summary.clearSelection();
   },
 
   /**
@@ -197,6 +245,7 @@ var GraphMe = {
     var newBounds = {'xmin': xmin, 'xmax': xmax, 'ymin': null, 'ymax': null};
 
     this.graphs.plot = this.fullGraph(this.plotData.data, newBounds);
+    //console.log(this.graphs.plot);
   },
 
   /**
@@ -409,7 +458,7 @@ var GraphMe = {
    * Hide selection and handles
    */
   hideSelection: function() {
-    
+
     // Hide handles
     this.handles.left.hide();
     this.handles.right.hide();
@@ -435,10 +484,12 @@ var GraphMe = {
 
     plotData = [];
 
-    data.each(function(d) {
-      var tmp = {data: d};
-      plotData.push(tmp);
-    });
+    data.each(function(d, index) {
+      if (this.graphStatus[index].enabled) {
+        var tmp = {data: d};
+        plotData.push(tmp);
+      }
+    }, this);
 
     var p = Flotr.draw(
       $('summaryGraph'),
@@ -474,9 +525,12 @@ var GraphMe = {
     plotData = [];
 
     data.each(function(d, index) {
-      var tmp = {data: d.slice(xmin, xmax+1), label: "graph"+index};
-      plotData.push(tmp);
-    });
+      //var tmp = {data: d.slice(xmin, xmax+1), label: "graph"+index};
+      if (this.graphStatus[index].enabled) {
+        var tmp = {data: d.slice(xmin, xmax+1), label: this.graphStatus[index].name};
+        plotData.push(tmp);
+      }
+    }, this);
 
 
     var p = Flotr.draw(
