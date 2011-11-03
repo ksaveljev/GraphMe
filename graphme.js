@@ -287,17 +287,6 @@ var GraphMe = {
     this.handles.scroll.hide();
   },
 
-  jmxStatsTrackFormatter: function(obj) {
-    
-    //var x = Math.floor(obj.x);
-    //var timeAndDate = this.plotData.data[this.timeAndDateIndex][x];
-
-    //var text = "TIME: " + timeAndDate + "   VALUE: " + obj.y;
-    var text = "test";
-
-    return text;
-  },
-
   /**
    * Set the position of the scroll handle
    *
