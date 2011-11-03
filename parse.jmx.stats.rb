@@ -18,6 +18,6 @@ input.headers.each_with_index do |header, index|
       e
     end
   end
-  data.collect!.with_index{ |e, i| [i,e] }
+  data.collect!.with_index{ |e, i| [i,e] }.reject!{ |e| e[1] == "ERROR" }
   output.puts("plotData.set('#{header}', #{data.to_s});")
 end

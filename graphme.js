@@ -45,7 +45,7 @@ var GraphMe = {
    *
    * @member Object
    */
-  bounds: {xmin: null, xmax: null, ymin: null, ymax: null},
+  bounds: {xmin: 0, xmax: 0, ymin: 0, ymax: 0},
   /**
    * Graphs used to display data
    *
@@ -76,6 +76,15 @@ var GraphMe = {
    * @member function
    */
   trackFormatter: Flotr.defaultTrackFormatter,
+  /**
+   * When getting data from plotData one of the
+   * fields will be 'Time and Date' which will
+   * be used for trackFormatter. In order not
+   * to calculate index of the needed data after
+   * the initial plotData has been parsed we
+   * are going to store the index in this var
+   */
+  timeAndDateIndex: 0,
 
 
 
@@ -88,15 +97,34 @@ var GraphMe = {
    */
   init: function(id, plotData, summaryPeriod) {
 
+    // redefining trackFormatter to show
+    // timeAndDate with value
+    this.trackFormatter = function(obj) {
+
+      var x = Math.floor(obj.x);
+      var timeAndDate = this.plotData.data[this.timeAndDateIndex][x][1];
+      var text = timeAndDate + "<br/>" + obj.y;
+
+      return text;
+    }.bind(this);
+
     // Set members
     this.id = id;
     // plotData is a hash of a form
     // header1 => [stats data],
     // header2 => [stats data]
     plotData.each(function(pair) {
+      if (pair.key == "Time and Date") {
+        this.timeAndDateIndex = this.plotsNum;
+      }
       this.plotData.data.push(pair.value);
       this.graphStatus.push({name: pair.key, enabled: false});
       this.plotsNum += 1;
+
+      // as the input data can have different length of data streams
+      // due to jmx errors (can't get a value during GC and so on)
+      // we have to pick the longest data stream to set as length
+      this.bounds.xmax = Math.max(this.bounds.xmax, pair.value.length);
     }, this);
     this.summaryPeriod = summaryPeriod;
 
@@ -105,7 +133,6 @@ var GraphMe = {
 
     // Set bounds to scale automatically in the y direction
     this.bounds.xmin = 0;
-    this.bounds.xmax = this.plotData.data[0].length;
     this.bounds.ymin = null;
     this.bounds.ymax = null;
 
@@ -172,6 +199,7 @@ var GraphMe = {
 
     // Insert checkboxes to enable/disable drawing of particular graphs
     html = ['<table style="margin-left:auto; margin-right:auto; font-size:13">'];
+    //html = ['<table>'];
 
     this.graphStatus.each(function(graphStatus, index) {
       html.push('<tr><td><input id="graphStatus' + index + '" type="checkbox" name="graphStatus" value="' + index + '" /></td><td><label id="graphStatusLabel' + index + '">' + graphStatus.name + '</label></td></tr>');
@@ -252,10 +280,22 @@ var GraphMe = {
    * Reset to null selection
    */
   reset: function() {
+
     this.graphs.plot = this.fullGraph(this.plotData.data, this.bounds);
     this.handles.left.hide();
     this.handles.right.hide();
     this.handles.scroll.hide();
+  },
+
+  jmxStatsTrackFormatter: function(obj) {
+    
+    //var x = Math.floor(obj.x);
+    //var timeAndDate = this.plotData.data[this.timeAndDateIndex][x];
+
+    //var text = "TIME: " + timeAndDate + "   VALUE: " + obj.y;
+    var text = "test";
+
+    return text;
   },
 
   /**
