@@ -242,8 +242,9 @@ var GraphMe = {
    * @param e MouseEvent
    */
   updateGraphStatus: function(e) {
-    srcElement = e.srcElement;
-    this.graphStatus[srcElement.value].enabled = srcElement.checked;
+    console.log(e);
+    var target = e.target;
+    this.graphStatus[target.value].enabled = target.checked;
 
     var area = {
       x1: 0,
